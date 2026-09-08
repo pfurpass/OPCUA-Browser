@@ -1,0 +1,32 @@
+services:
+  browser:
+    build: .
+    image: opcua-browser:1.0.0
+    container_name: opcua-browser
+    ports:
+      - "8080:8080"
+    environment:
+      # Auf "true" setzen, wenn niemand Werte in die Steuerung schreiben darf
+      OPCUA_READ_ONLY: "false"
+      OPCUA_SESSION_IDLE_TIMEOUT: "1800"
+      LOG_LEVEL: "INFO"
+    volumes:
+      - certs:/data
+    restart: unless-stopped
+
+  # Simulierte Anlage zum Ausprobieren: docker compose --profile demo up
+  demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+    image: opcua-demo-anlage:1.0.0
+    container_name: opcua-demo-anlage
+    profiles: ["demo"]
+    environment:
+      DEMO_ENDPOINT: "opc.tcp://0.0.0.0:4840/anlage/"
+    ports:
+      - "4840:4840"
+    restart: unless-stopped
+
+volumes:
+  certs:

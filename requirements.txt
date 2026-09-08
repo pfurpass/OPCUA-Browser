@@ -1,0 +1,4 @@
+asyncua==2.0.1
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+cryptography>=42.0

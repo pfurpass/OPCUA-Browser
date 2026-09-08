@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OPC UA Browser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23141c24'/%3E%3Crect x='3' y='3' width='4' height='4' fill='%23ffb000'/%3E%3Crect x='9' y='9' width='4' height='4' fill='%2359c9d6'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">OPC UA Browser</span>
+  </div>
+
+  <form class="connect" id="connect-form" autocomplete="off">
+    <input id="url" class="url" type="text" spellcheck="false"
+           placeholder="opc.tcp://192.168.0.10:4840" aria-label="Serveradresse">
+    <button type="submit" id="connect-btn" class="btn primary">Verbinden</button>
+    <button type="button" id="options-btn" class="btn ghost" aria-expanded="false">Optionen</button>
+  </form>
+
+  <div class="link-state" id="link-state">
+    <span class="led" data-state="off"></span>
+    <span id="link-text">nicht verbunden</span>
+  </div>
+</header>
+
+<section class="options" id="options" hidden>
+  <label>Benutzer<input id="username" type="text" spellcheck="false" placeholder="anonym"></label>
+  <label>Passwort<input id="password" type="password"></label>
+  <label>Sicherheitsrichtlinie
+    <select id="policy">
+      <option value="None">Keine</option>
+      <option value="Basic256Sha256">Basic256Sha256</option>
+      <option value="Aes128Sha256RsaOaep">Aes128Sha256RsaOaep</option>
+      <option value="Aes256Sha256RsaPss">Aes256Sha256RsaPss</option>
+    </select>
+  </label>
+  <label>Modus
+    <select id="mode">
+      <option value="SignAndEncrypt">Signieren und verschlüsseln</option>
+      <option value="Sign">Nur signieren</option>
+    </select>
+  </label>
+  <button type="button" id="endpoints-btn" class="btn ghost">Endpunkte des Servers anzeigen</button>
+  <div class="endpoint-list" id="endpoint-list" hidden></div>
+</section>
+
+<main class="workspace">
+  <aside class="tree-pane" id="tree-pane">
+    <div class="tree-head">
+      <input id="search" type="search" placeholder="Knoten suchen" spellcheck="false" aria-label="Knoten suchen" disabled>
+      <button type="button" id="search-btn" class="btn ghost small" disabled>Suchen</button>
+    </div>
+    <div class="tree-scroll" id="tree-scroll">
+      <div class="placeholder" id="tree-placeholder">
+        <p>Der Adressraum erscheint hier, sobald eine Verbindung steht.</p>
+      </div>
+      <ul class="tree" id="tree" role="tree" aria-label="Adressraum"></ul>
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="tree-foot" id="tree-foot"></div>
+  </aside>
+
+  <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" tabindex="0"
+       aria-label="Breite der Baumansicht ändern"></div>
+
+  <section class="detail" id="detail">
+    <div class="placeholder big" id="detail-placeholder">
+      <h1>Adressraum einer Steuerung durchsehen</h1>
+      <p>Gib oben die Endpunktadresse deines OPC-UA-Servers ein, zum Beispiel
+        <code>opc.tcp://192.168.0.10:4840</code>. Links baut sich dann der Knotenbaum auf,
+        hier stehen Attribute, Werte und Referenzen des ausgewählten Knotens.</p>
+      <p class="hint">Tastatur im Baum: Pfeil hoch und runter bewegen die Auswahl,
+        Pfeil rechts klappt auf, Pfeil links klappt zu.</p>
+    </div>
+
+    <article class="node-view" id="node-view" hidden>
+      <nav class="crumbs" id="crumbs" aria-label="Pfad"></nav>
+
+      <header class="node-head">
+        <span class="glyph" id="node-glyph" aria-hidden="true"></span>
+        <h1 id="node-title">–</h1>
+        <span class="badge" id="node-class"></span>
+        <button type="button" class="nodeid" id="node-id" title="NodeId kopieren"></button>
+      </header>
+      <p class="node-desc" id="node-desc" hidden></p>
+
+      <div class="tabs" role="tablist">
+        <button role="tab" class="tab active" data-tab="value" aria-selected="true">Wert</button>
+        <button role="tab" class="tab" data-tab="attributes" aria-selected="false">Attribute</button>
+        <button role="tab" class="tab" data-tab="references" aria-selected="false">Referenzen</button>
+      </div>
+
+      <div class="panel" id="panel-value" role="tabpanel">
+        <div class="value-card" id="value-card">
+          <div class="value-main">
+            <span class="led" id="value-led" data-state="off"></span>
+            <output class="value-text" id="value-text">–</output>
+          </div>
+          <dl class="value-meta" id="value-meta"></dl>
+          <svg class="trend" id="trend" viewBox="0 0 300 44" preserveAspectRatio="none" hidden></svg>
+        </div>
+
+        <div class="value-tools" id="value-tools">
+          <label class="poll">
+            <input type="checkbox" id="poll-toggle">
+            <span>Laufend aktualisieren</span>
+          </label>
+          <select id="poll-interval" aria-label="Abstand zwischen den Abfragen">
+            <option value="500">alle 0,5 s</option>
+            <option value="1000" selected>jede Sekunde</option>
+            <option value="2000">alle 2 s</option>
+            <option value="5000">alle 5 s</option>
+          </select>
+          <button type="button" class="btn ghost small" id="read-once">Jetzt lesen</button>
+        </div>
+
+        <form class="write-row" id="write-row" hidden>
+          <input id="write-input" type="text" spellcheck="false" placeholder="Neuer Wert" aria-label="Neuer Wert">
+          <button type="submit" class="btn primary small">Wert schreiben</button>
+          <span class="write-note" id="write-note"></span>
+        </form>
+
+        <div class="method-args" id="method-args" hidden></div>
+      </div>
+
+      <div class="panel" id="panel-attributes" role="tabpanel" hidden></div>
+      <div class="panel" id="panel-references" role="tabpanel" hidden></div>
+    </article>
+  </section>
+</main>
+
+<footer class="statusbar">
+  <span id="status-server">–</span>
+  <span id="status-url"></span>
+  <span id="status-ns"></span>
+  <span class="grow"></span>
+  <span id="status-msg"></span>
+  <button type="button" id="disconnect-btn" class="btn ghost small" hidden>Verbindung trennen</button>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
